@@ -509,7 +509,8 @@ void ringUpdate (int loc_n, vect_t* pos){
        MPI_Sendrecv( current, loc_n, vect_mpi_t, next, 0, incoming,  loc_n, vect_mpi_t,  previous, 0, comm, MPI_STATUS_IGNORE );
         current_rank = (current_rank -1 + comm_sz) % comm_sz;
         for (int j=0; j<loc_n; j++){
-         pos[current_rank*loc_n + j] =  incoming[j];
+         pos[current_rank*loc_n + j][X] =  incoming[j][X];
+         pos[current_rank*loc_n + j][Y] =  incoming[j][Y];
 }
    current = incoming;
 
