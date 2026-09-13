@@ -98,6 +98,7 @@ void Compute_force(int loc_part, double masses[], vect_t loc_forces[],
 void Update_part(int loc_part, double masses[], vect_t loc_forces[],
       vect_t loc_pos[], vect_t loc_vel[], int n, int loc_n, double delta_t);
 
+void ringUpdate (int loc_n, vect_t* pos);
 
      /*
       idea for drafting
@@ -114,7 +115,7 @@ void Update_part(int loc_part, double masses[], vect_t loc_forces[],
       current = incoming
       //owner tracking
       current_rank = (current_rank -1 +comm_sz) % comm_sz
-      
+
 
       for (int i=0; i<loc_n;i++){
 pos[current_rank*loc_n + i] =  incoming[i]
@@ -172,8 +173,7 @@ int main(int argc, char* argv[]) {
       for (loc_part = 0; loc_part < loc_n; loc_part++)
          Update_part(loc_part, masses, loc_forces, loc_pos, loc_vel,
                n, loc_n, delta_t);
-      MPI_Allgather(MPI_IN_PLACE, loc_n, vect_mpi_t,
-                    pos, loc_n, vect_mpi_t, comm);
+      ringUpdate ( loc_n, pos);
 #     ifndef NO_OUTPUT
       if (step % output_freq == 0)
          Output_state(t, masses, pos, loc_vel, n, loc_n);
@@ -495,3 +495,25 @@ void Update_part(int loc_part, double masses[], vect_t loc_forces[],
                loc_vel[loc_part][X], loc_vel[loc_part][Y]);
 #  endif
 }  /* Update_part */
+
+// this is my ring function
+
+void ringUpdate (int loc_n, vect_t* pos){
+   int current_rank = my_rank;
+   int next= (my_rank + 1) % comm_sz;
+   int previous= (my_rank -1 + comm_sz )% comm_sz;
+   vect_t* current = pos +my_rank *loc_n;
+   vect_t* incoming = malloc(loc_n*sizeof(vect_t));
+   // loop
+   for (int i=0; i< comm_sz-1; i++){
+       MPI_Sendrecv( current, loc_n, vect_mpi_t, next, 0, incoming,  loc_n, vect_mpi_t,  previous, 0, comm, MPI_STATUS_IGNORE );
+        current_rank = (current_rank -1 + comm_sz) % comm_sz;
+        for (int j=0; j<loc_n; j++){
+         pos[current_rank*loc_n + j] =  incoming[j];
+}
+   current = incoming;
+
+   }
+
+
+}
