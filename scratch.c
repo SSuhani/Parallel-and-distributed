@@ -83,7 +83,9 @@ int main(int argc, char* argv[]) {
    int part;                   /* Current particle           */
    int output_freq;            /* Frequency of output        */
    double delta_t;             /* Size of timestep           */
+#  ifndef NO_OUTPUT
    double t;                   /* Current Time               */
+#  endif
    struct particle_s* curr;    /* Current state of system    */
    vect_t* forces;             /* Forces on each particle    */
    int thread_count;           /* Number of threads          */
@@ -103,38 +105,25 @@ int main(int argc, char* argv[]) {
 #  ifndef NO_OUTPUT
    Output_state(0, curr, n);
 #  endif
+   for (step = 1; step <= n_steps; step++) {
+#     ifndef NO_OUTPUT
+      t = step*delta_t;
+#     endif
 
+      Reset_forces(forces, n);
 
-   //
-   # pragma omp parallel num_threads(thread_count) default(none) \
-        shared(curr, forces, n, n_steps, delta_t, output_freq) \
-        private(step, part, t)
-        {
-
-         for (step =1; step<= n_steps; step++){
-            t = step *delta_t;
-
-   #  pragma omp single
-       Reset_forces(forces,n);
-
-   #   pragma omp for
-       for ( part =0; part<n-1; part++)
+      /* Particle n-1 has all its forces after Compute_force(n-2, ...). */
+      for (part = 0; part < n-1; part++)
          Compute_force(part, forces, curr, n);
 
-   # pragma omp for
-            for ( part=0; part<n ;part++)
-            Update_part(part, forces, curr, n, delta_t);
+      for (part = 0; part < n; part++)
+         Update_part(part, forces, curr, n, delta_t);
 
-            # ifndef NO_OUTPUT
-            #pragma omp single
-            if( step % output_freq ==0)
-            Output_state(t, curr, n);
-         #endif
-       }
-      }
-
-
-
+#     ifndef NO_OUTPUT
+      if (step % output_freq == 0)
+         Output_state(t, curr, n);
+#     endif
+   }
 
    finish = omp_get_wtime();
    printf("Elapsed time = %e seconds\n", finish-start);
@@ -344,14 +333,10 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
 #     endif
 
       /* Accumulate equal and opposite contributions into shared forces. */
-# pragma omp critical
- {
       forces[part][X] += f_part_k[X];
       forces[part][Y] += f_part_k[Y];
       forces[k][X] -= f_part_k[X];
       forces[k][Y] -= f_part_k[Y];
-
-     }
    }
 }  /* Compute_force */
 
