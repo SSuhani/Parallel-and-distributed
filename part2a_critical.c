@@ -1,4 +1,4 @@
-/* File:     nbody_shared_forces.c
+/* File:     part2a_critical.c
  * Purpose:  Provide a starter 2-dimensional n-body solver for the OpenMP
  *           synchronization exercise.  Each pairwise interaction is
  *           calculated once using the reduced-force algorithm, and the
