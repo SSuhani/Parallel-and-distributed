@@ -71,7 +71,7 @@ void Gen_init_cond(struct particle_s curr[], int n);
 void Output_state(double time, struct particle_s curr[], int n);
 void Reset_forces(vect_t forces[], int n);
 void Compute_force(int part, vect_t forces[], struct particle_s curr[],
-      int n);
+      int n, omp_lock_t* lock_p);
 void Update_part(int part, vect_t forces[], struct particle_s curr[],
       int n, double delta_t);
 
@@ -90,6 +90,8 @@ int main(int argc, char* argv[]) {
    char g_i;                   /* _G_en or _i_nput init conds */
    double start, finish;       /* For timings                */
 
+   omp_lock_t force_lock;
+
    Get_args(argc, argv, &thread_count, &n, &n_steps, &delta_t,
          &output_freq, &g_i);
    curr = malloc(n*sizeof(struct particle_s));
@@ -104,10 +106,11 @@ int main(int argc, char* argv[]) {
    Output_state(0, curr, n);
 #  endif
 
-
+    omp_init_lock(&force_lock);
    //
+
    # pragma omp parallel num_threads(thread_count) default(none) \
-        shared(curr, forces, n, n_steps, delta_t, output_freq) \
+        shared(curr, forces, n, n_steps, delta_t, output_freq, force_lock) \
         private(step, part, t)
         {
 
@@ -119,7 +122,7 @@ int main(int argc, char* argv[]) {
 
    #   pragma omp for
        for ( part =0; part<n-1; part++)
-         Compute_force(part, forces, curr, n);
+         Compute_force(part, forces, curr, n, &force_lock);
 
    # pragma omp for
             for ( part=0; part<n ;part++)
@@ -134,7 +137,7 @@ int main(int argc, char* argv[]) {
       }
 
 
-
+omp_destroy_lock(&force_lock);
 
    finish = omp_get_wtime();
    printf("Elapsed time = %e seconds\n", finish-start);
@@ -318,7 +321,7 @@ void Reset_forces(vect_t forces[], int n) {
  *    -G m_part m_k (s_part - s_k)/|s_part - s_k|^3
  */
 void Compute_force(int part, vect_t forces[], struct particle_s curr[],
-      int n) {
+      int n,omp_lock_t* lock_p) {
    int k;
    double mg;
    vect_t f_part_k;
@@ -344,14 +347,13 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
 #     endif
 
       /* Accumulate equal and opposite contributions into shared forces. */
-# pragma omp critical
- {
+omp_set_lock(lock_p);
       forces[part][X] += f_part_k[X];
       forces[part][Y] += f_part_k[Y];
       forces[k][X] -= f_part_k[X];
       forces[k][Y] -= f_part_k[Y];
 
-     }
+omp_unset_lock(lock_p);
    }
 }  /* Compute_force */
 
